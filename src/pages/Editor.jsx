@@ -7,16 +7,17 @@ import { useStore, defaultBrand } from '../store.jsx';
 import { Modal, ImageBox, SearchInput, Field, Menu, Confirm, STATUS, Empty } from '../ui.jsx';
 import { ProductForm } from './Products.jsx';
 import { SaveTemplateModal } from './Templates.jsx';
-import { fmtMoney, firstLine } from '../util.js';
+import { fmtMoney, firstLine, pickFile, processImage } from '../util.js';
 import { itemAmount, quoteTotal, ROW_H } from '../layout.js';
-import { exportExcel, exportPdf } from '../exporters.js';
-import { renderSheet, paginate } from '../render.js';
+import { exportExcel, exportPdf, switchLayout } from '../exporters.js';
+import { renderAny, paginateAny } from '../render.js';
+import { LAYOUTS, layoutOf, SYS_DEFAULTS, SYS } from '../layout2.js';
 import { uid } from '../seed.js';
 
-const LIB_FIELDS = ['name', 'warranty', 'model', 'price', 'image'];
-const itemFromProduct = (p) => ({
-  id: uid(), productId: p.id, name: p.name || '', warranty: p.warranty || '', model: p.model || '',
-  price: p.price ?? '', image: p.image || '', qty: 1, rowHeight: ROW_H.item,
+const LIB_FIELDS = ['name', 'nameBold', 'warranty', 'model', 'price', 'image'];
+const itemFromProduct = (p, sys) => ({
+  id: uid(), productId: p.id, name: p.name || '', nameBold: p.nameBold || '', warranty: p.warranty || '', model: p.model || '',
+  price: p.price ?? '', image: p.image || '', qty: 1, rowHeight: sys ? SYS.rowH.item : ROW_H.item, amountNote: '',
 });
 
 // ---------------- 产品选择弹窗 ----------------
@@ -54,10 +55,10 @@ function ProductPicker({ onClose, onPick }) {
               <div className="thumb">{p.image && <img src={p.image} alt="" />}</div>
               <div className="grow">
                 <div className="strong">{firstLine(p.name) || '—'}</div>
-                <div className="muted sm">{[p.model, p.warranty].filter(Boolean).join(' · ') || '—'}</div>
+                <div className="muted sm">{[firstLine(p.model).replace(/\*\*/g, ''), p.warranty].filter(Boolean).join(' · ') || '—'}</div>
               </div>
               {p.category && <span className="chip">{p.category}</span>}
-              <div className="strong" style={{ width: 110, textAlign: 'right' }}>{p.price === '' || p.price == null ? '—' : fmtMoney(p.price)}</div>
+              <div className="strong" style={{ width: 110, textAlign: 'right' }}>{p.price === '' || p.price == null ? '—' : fmtMoney(p.price, p.currency === 'USD' ? '$' : '¥')}</div>
             </div>
           );
         })}
@@ -76,21 +77,21 @@ function Preview({ draft, brand, big }) {
     const t = setTimeout(async () => {
       if (!ref.current || !brand) return;
       const scale = (window.devicePixelRatio || 1) * (big ? 1.2 : 0.75);
-      const { rows } = await renderSheet(draft, brand, scale, { canvas: ref.current, pageBreaks: true });
-      if (!cancel) setPages(paginate(rows).length);
+      const { rows } = await renderAny(draft, brand, scale, { canvas: ref.current, pageBreaks: true });
+      if (!cancel) setPages(paginateAny(draft, rows).length);
     }, 180);
     return () => { cancel = true; clearTimeout(t); };
   }, [draft, brand, big]);
   return (
     <div className={'preview' + (big ? ' big' : '')}>
       <canvas ref={ref} />
-      <div className="preview-foot">A4 纵向 · 60% 缩放 · 共 {pages} 页{pages > 1 ? '（蓝色虚线为分页位置）' : ''}</div>
+      <div className="preview-foot">A4 纵向 · {layoutOf(draft) === 'system' ? '按页宽缩放' : '60% 缩放'} · 共 {pages} 页{pages > 1 ? '（蓝色虚线为分页位置）' : ''}</div>
     </div>
   );
 }
 
 // ---------------- 明细行 ----------------
-function ItemRow({ it, idx, count, product, update, move, dup, del, toLibrary, updateLibrary, resetFromLibrary }) {
+function ItemRow({ it, idx, count, product, sys, sym, update, move, dup, del, toLibrary, updateLibrary, resetFromLibrary }) {
   const set = (k) => (e) => update({ ...it, [k]: e?.target ? e.target.value : e });
   const modified = product && LIB_FIELDS.some((k) => String(product[k] ?? '') !== String(it[k] ?? ''));
   return (
@@ -99,7 +100,8 @@ function ItemRow({ it, idx, count, product, update, move, dup, del, toLibrary, u
       <ImageBox value={it.image} onChange={set('image')} size={72} />
       <div className="item-main">
         <textarea rows={2} value={it.name} onChange={set('name')} placeholder="产品名称（可换行）" />
-        <input value={it.warranty} onChange={set('warranty')} placeholder="质保（可选）" />
+        {sys && <input value={it.nameBold || ''} onChange={set('nameBold')} placeholder="加粗补充（可选），例：With UPS" />}
+        <input value={it.warranty} onChange={set('warranty')} placeholder={sys ? '质保，例：5 Years（导出为 [5 Years]）' : '质保（可选）'} />
         <div className="item-tag">
           {product ? (modified
             ? <span className="tag tag-warn" title="与产品库数据不同，仅影响本报价单">已修改</span>
@@ -110,10 +112,17 @@ function ItemRow({ it, idx, count, product, update, move, dup, del, toLibrary, u
           <label className="rh" title="导出 Excel 时该行的行高（磅），图片会按行高自动缩放">行高<input className="item-h" type="number" value={it.rowHeight} onChange={set('rowHeight')} /></label>
         </div>
       </div>
-      <textarea className="item-model" rows={3} value={it.model} onChange={set('model')} placeholder="型号 / 规格" />
+      <textarea className="item-model" rows={3} value={it.model} onChange={set('model')} placeholder={sys ? '型号 / 规格，**文字** 加粗' : '型号 / 规格'} />
       <input className="item-num" type="number" value={it.qty} onChange={set('qty')} placeholder="数量" />
       <input className="item-num" type="number" step="0.01" value={it.price} onChange={set('price')} placeholder="单价" />
-      <div className="item-amt">{fmtMoney(itemAmount(it))}</div>
+      <div className="item-amt">
+        {it.amountNote ? <span style={{ color: '#E03131' }}>{it.amountNote}</span> : fmtMoney(itemAmount(it), sym)}
+        {sys && (
+          <select className="note-sel" value={it.amountNote || ''} onChange={set('amountNote')} title="金额栏显示">
+            <option value="">计入合计</option><option value="Optional">Optional</option><option value="FREE">FREE</option>
+          </select>
+        )}
+      </div>
       <Menu items={[
         { label: '上移', icon: <LuArrowUp />, disabled: idx === 0, onClick: () => move(-1) },
         { label: '下移', icon: <LuArrowDown />, disabled: idx === count - 1, onClick: () => move(1) },
@@ -172,6 +181,22 @@ export default function Editor({ kind, id, draft: initDraft, go, setGuard }) {
   };
   const back = () => go(kind === 'template' ? 'templates' : 'quotes');
   const total = quoteTotal(draft);
+  const sys = layoutOf(draft) === 'system';
+  const sym = LAYOUTS[layoutOf(draft)].symbol;
+  const S = { ...SYS_DEFAULTS(), ...(draft.sys || {}) };
+  const setS = (patch) => setDraft((d) => ({ ...d, sys: { ...SYS_DEFAULTS(), ...(d.sys || {}), ...patch } }));
+  const listEditor = (list, onChange, addLabel) => (
+    <div>
+      {list.map((t, i) => (
+        <div key={i} className="term-row">
+          <input value={t} onChange={(e) => onChange(list.map((x, j) => (j === i ? e.target.value : x)))} />
+          <button className="icon-btn" disabled={i === 0} onClick={() => { const a = [...list]; [a[i - 1], a[i]] = [a[i], a[i - 1]]; onChange(a); }}><LuArrowUp /></button>
+          <button className="icon-btn" onClick={() => onChange(list.filter((_, j) => j !== i))}><LuX /></button>
+        </div>
+      ))}
+      <button className="btn sm" onClick={() => onChange([...list, ''])}><LuPlus /> {addLabel}</button>
+    </div>
+  );
 
   return (
     <div className="editor">
@@ -195,6 +220,13 @@ export default function Editor({ kind, id, draft: initDraft, go, setGuard }) {
         <div className="editor-left">
           <section className="card">
             <div className="card-title">基本信息</div>
+            <div className="layout-switch">
+              {Object.entries(LAYOUTS).map(([k, v]) => (
+                <button key={k} className={'layout-opt' + (layoutOf(draft) === k ? ' on' : '')} onClick={() => setDraft((d) => switchLayout(d, k))}>
+                  <b>{k === 'system' ? '系统方案版' : '经典版'}</b><span>{v.label.replace(/^[^（]*/, '')}</span>
+                </button>
+              ))}
+            </div>
             <div className="grid3">
               <Field label="抬头">
                 <select className="select" value={brand?.id} onChange={set('brandId')}>
@@ -226,28 +258,60 @@ export default function Editor({ kind, id, draft: initDraft, go, setGuard }) {
             )}
           </section>
 
+          {sys && (
+            <section className="card">
+              <div className="card-title">项目信息与联系人</div>
+              <div className="sys-grid">
+                <div>
+                  <span className="field-label">PROJECT INFORMATION（左栏：标签 / 内容）</span>
+                  {S.project.map((p, i) => (
+                    <div key={i} className="pair">
+                      <input value={p[0]} onChange={(e) => setS({ project: S.project.map((x, j) => (j === i ? [e.target.value, x[1]] : x)) })} />
+                      <input value={p[1]} onChange={(e) => setS({ project: S.project.map((x, j) => (j === i ? [x[0], e.target.value] : x)) })} placeholder="内容" />
+                    </div>
+                  ))}
+                </div>
+                <div>
+                  <span className="field-label">CONTACT（右栏）</span>
+                  <div className="pair"><span className="pair-l">Name</span><input value={S.contact.name} onChange={(e) => setS({ contact: { ...S.contact, name: e.target.value } })} placeholder="业务员姓名" /></div>
+                  <div className="pair"><span className="pair-l">Phone/WhatsApp</span><input value={S.contact.phone} onChange={(e) => setS({ contact: { ...S.contact, phone: e.target.value } })} placeholder="电话 / WhatsApp / 微信" /></div>
+                  <div className="pair"><span className="pair-l">Email</span><input value={S.contact.email} onChange={(e) => setS({ contact: { ...S.contact, email: e.target.value } })} /></div>
+                </div>
+              </div>
+              <div className="card-title" style={{ marginTop: 20 }}>方案标题</div>
+              <div className="grid3">
+                <Field label="标题高亮部分（主题色）"><input value={S.titleHL} onChange={(e) => setS({ titleHL: e.target.value })} placeholder="例：500KW+1.8MWh" /></Field>
+                <Field label="标题其余部分"><input value={S.titleRest} onChange={(e) => setS({ titleRest: e.target.value })} placeholder="例：Energy Storage System" /></Field>
+                <Field label="日期（显示为 Date: 年/月/日）"><input type="date" value={draft.date || ''} onChange={set('date')} /></Field>
+              </div>
+              <div style={{ marginTop: 14 }}>
+                <Field label="副标题（用 **文字** 标记加粗）"><input value={S.subtitle} onChange={(e) => setS({ subtitle: e.target.value })} placeholder="例：[**500kW** Three Phase Inverter] + [**1.881MWh** Battery Bank]" /></Field>
+              </div>
+            </section>
+          )}
+
           <section className="card">
             <div className="card-title-row">
               <div className="card-title">产品明细 <span className="muted sm">（{draft.items.length} 项）</span></div>
               <div className="grow" />
-              <button className="btn" onClick={() => setItems((l) => [...l, { id: uid(), name: '', warranty: '', model: '', qty: 1, price: '', image: '', rowHeight: ROW_H.item }])}><LuPlus /> 手动添加</button>
+              <button className="btn" onClick={() => setItems((l) => [...l, { id: uid(), name: '', nameBold: '', warranty: '', model: '', qty: 1, price: '', image: '', rowHeight: sys ? SYS.rowH.item : ROW_H.item, amountNote: '' }])}><LuPlus /> 手动添加</button>
               <button className="btn primary" onClick={() => setPicker(true)}><LuPackagePlus /> 从产品库选择</button>
             </div>
             <div className="item-head">
-              <span>#</span><span>图片</span><span>产品名称 / 质保</span><span>型号 / 规格</span><span>数量</span><span>单价 (RMB)</span><span className="r">金额</span><span />
+              <span>#</span><span>图片</span><span>产品名称 / 质保</span><span>型号 / 规格</span><span>数量</span><span>单价 ({sys ? 'USD' : 'RMB'})</span><span className="r">金额</span><span />
             </div>
             {draft.items.map((it, i) => (
-              <ItemRow key={it.id} it={it} idx={i} count={draft.items.length} product={productOf(it)}
+              <ItemRow key={it.id} it={it} idx={i} count={draft.items.length} product={productOf(it)} sys={sys} sym={sym}
                 update={updateItem(i)}
                 move={(d) => setItems((l) => { const a = [...l]; [a[i], a[i + d]] = [a[i + d], a[i]]; return a; })}
                 dup={() => setItems((l) => [...l.slice(0, i + 1), { ...it, id: uid() }, ...l.slice(i + 1)])}
                 del={() => setItems((l) => l.filter((_, j) => j !== i))}
-                toLibrary={(asNew) => setPform({ i, initial: { name: it.name, warranty: it.warranty, model: it.model, price: it.price, image: it.image, category: (!asNew && productOf(it)?.category) || '' } })}
+                toLibrary={(asNew) => setPform({ i, initial: { currency: sys ? 'USD' : 'RMB', name: it.name, nameBold: it.nameBold || '', warranty: it.warranty, model: it.model, price: it.price, image: it.image, category: (!asNew && productOf(it)?.category) || '' } })}
                 updateLibrary={() => setConfirm({
                   title: '同步到产品库', text: `将本行的名称、质保、型号、单价、图片覆盖到产品库「${firstLine(productOf(it).name)}」？其它报价单不受影响。`,
-                  onOk: async () => { const p = productOf(it); await save('products', { ...p, name: it.name, warranty: it.warranty, model: it.model, price: it.price === '' ? '' : Number(it.price), image: it.image }); toast('产品库已更新'); },
+                  onOk: async () => { const p = productOf(it); await save('products', { ...p, name: it.name, nameBold: it.nameBold || '', warranty: it.warranty, model: it.model, price: it.price === '' ? '' : Number(it.price), image: it.image }); toast('产品库已更新'); },
                 })}
-                resetFromLibrary={() => { const p = productOf(it); updateItem(i)({ ...it, name: p.name, warranty: p.warranty, model: p.model, price: p.price, image: p.image }); }}
+                resetFromLibrary={() => { const p = productOf(it); updateItem(i)({ ...it, name: p.name, nameBold: p.nameBold || '', warranty: p.warranty, model: p.model, price: p.price, image: p.image }); }}
               />
             ))}
             {!draft.items.length && (
@@ -257,10 +321,30 @@ export default function Editor({ kind, id, draft: initDraft, go, setGuard }) {
               </div>
             )}
             <div className="items-total">
-              <span className="muted">合计</span><span className="total-num">{fmtMoney(total)}</span>
+              <span className="muted">合计{sys ? '（不含 Optional / FREE）' : ''}</span><span className="total-num">{fmtMoney(total, sym)}</span>
             </div>
           </section>
 
+{sys ? (
+          <section className="card">
+            <div className="card-title">合计行、条款与名片</div>
+            <div className="grid1">
+              <Field label="合计行文字"><input value={draft.totalLabel} onChange={set('totalLabel')} /></Field>
+              <div className="sys-grid">
+                <div><span className="field-label">条款 · 左栏（每行自动加 •）</span>{listEditor(S.termsL, (v) => setS({ termsL: v }), '添加')}</div>
+                <div><span className="field-label">条款 · 右栏</span>{listEditor(S.termsR, (v) => setS({ termsR: v }), '添加')}</div>
+              </div>
+              <div>
+                <span className="field-label">底部名片横幅（可选，建议宽高比约 6:1）</span>
+                <div className="card-banner" onClick={async () => { const f = await pickFile(); if (f) setS({ card: await processImage(f, { maxSize: 2400 }) }); }}>
+                  {S.card ? <img src={S.card} alt="" /> : <span className="muted"><LuPlus /> 点击上传业务员名片横幅</span>}
+                  {S.card && <button className="imgbox-del" style={{ display: 'grid' }} onClick={(e) => { e.stopPropagation(); setS({ card: '' }); }}><LuX /></button>}
+                </div>
+                <div className="field-hint" style={{ marginTop: 6 }}>与原模板相同，以 WPS 单元格图片方式写入 Excel；名片只保存在本机浏览器里。</div>
+              </div>
+            </div>
+          </section>
+          ) : (
           <section className="card">
             <div className="card-title">合计行与条款</div>
             <div className="grid1">
@@ -279,6 +363,7 @@ export default function Editor({ kind, id, draft: initDraft, go, setGuard }) {
               <Field label="工作表名称" hint="Excel 底部 Sheet 标签名，原模板为「10」"><input value={draft.sheetName} onChange={set('sheetName')} style={{ maxWidth: 240 }} /></Field>
             </div>
           </section>
+          )}
         </div>
 
         <aside className="editor-right">
@@ -293,9 +378,9 @@ export default function Editor({ kind, id, draft: initDraft, go, setGuard }) {
         </aside>
       </div>
 
-      {picker && <ProductPicker onClose={() => setPicker(false)} onPick={(ps) => { setItems((l) => [...l, ...ps.map(itemFromProduct)]); toast(`已导入 ${ps.length} 个产品`); }} />}
+      {picker && <ProductPicker onClose={() => setPicker(false)} onPick={(ps) => { setItems((l) => [...l, ...ps.map((p) => itemFromProduct(p, sys))]); toast(`已导入 ${ps.length} 个产品`); }} />}
       {pform && <ProductForm title="存入产品库" initial={pform.initial} onClose={() => setPform(null)}
-        onSaved={(p) => updateItem(pform.i)({ ...draft.items[pform.i], productId: p.id, name: p.name, warranty: p.warranty, model: p.model, price: p.price, image: p.image })} />}
+        onSaved={(p) => updateItem(pform.i)({ ...draft.items[pform.i], productId: p.id, name: p.name, nameBold: p.nameBold || '', warranty: p.warranty, model: p.model, price: p.price, image: p.image })} />}
       {tplModal && <SaveTemplateModal source={draft} onClose={() => setTplModal(false)} />}
       {confirm && <Confirm {...confirm} onClose={() => setConfirm(null)} />}
       {bigPreview && <Modal title="预览" sub="与导出的 PDF 版式一致" width={1000} onClose={() => setBigPreview(false)}><Preview draft={draft} brand={brand} big /></Modal>}

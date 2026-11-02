@@ -4,6 +4,8 @@ import { useStore, defaultBrand } from '../store.jsx';
 import { SearchInput, Empty, Menu, Confirm, Pill, STATUS, Modal } from '../ui.jsx';
 import { fmtMoney, fmtDate } from '../util.js';
 import { quoteTotal } from '../layout.js';
+import { LAYOUTS, layoutOf } from '../layout2.js';
+const symOf = (q) => LAYOUTS[layoutOf(q)].symbol;
 import { exportExcel, exportPdf, blankQuote, quoteFromTemplate, cloneItems, nextQuoteNo } from '../exporters.js';
 import { SaveTemplateModal } from './Templates.jsx';
 
@@ -24,7 +26,7 @@ export function NewQuoteModal({ onClose, go }) {
               <div className="new-ico tpl"><LuLayoutTemplate /></div>
               <div>
                 <div className="strong">{t.name}</div>
-                <div className="muted sm">{t.items.length} 个产品 · {fmtMoney(quoteTotal(t))}{b ? ' · ' + b.name : ''}</div>
+                <div className="muted sm">{t.items.length} 个产品 · {fmtMoney(quoteTotal(t), symOf(t))}{b ? ' · ' + b.name : ''}</div>
               </div>
             </button>
           );
@@ -43,7 +45,8 @@ export default function Quotes({ query, setQuery, go }) {
   const [busy, setBusy] = useState('');
 
   const brandOf = (q) => data.brands.find((b) => b.id === q.brandId) || defaultBrand(data.brands);
-  const totalAll = data.quotes.reduce((s, q) => s + quoteTotal(q), 0);
+  const totalRMB = data.quotes.filter((q) => layoutOf(q) === 'classic').reduce((s, q) => s + quoteTotal(q), 0);
+  const totalUSD = data.quotes.filter((q) => layoutOf(q) === 'system').reduce((s, q) => s + quoteTotal(q), 0);
   const counts = Object.fromEntries(Object.keys(STATUS).map((k) => [k, data.quotes.filter((q) => (q.status || 'draft') === k).length]));
   const n = data.quotes.length || 1;
 
@@ -66,7 +69,7 @@ export default function Quotes({ query, setQuery, go }) {
       <div className="kpi-card">
         <div className="kpi">
           <div className="kpi-icon"><LuReceipt /></div>
-          <div><div className="kpi-label">报价总金额</div><div className="kpi-value">{fmtMoney(totalAll)}</div></div>
+          <div><div className="kpi-label">报价总金额</div><div className="kpi-value">{fmtMoney(totalUSD, '$')}</div><div className="muted sm">另有 {fmtMoney(totalRMB)}（经典版 RMB）</div></div>
         </div>
         <div className="kpi-div" />
         <div className="kpi-bar">
@@ -103,13 +106,13 @@ export default function Quotes({ query, setQuery, go }) {
                 <tr key={q.id} className="clickable" onDoubleClick={() => go('editor', { kind: 'quote', id: q.id })}>
                   <td>
                     <div className="strong">{q.no}</div>
-                    <div className="muted sm">{q.title || '未命名'} · {q.items.length} 项</div>
+                    <div className="muted sm">{q.title || '未命名'} · {q.items.length} 项 · {layoutOf(q) === 'system' ? '系统方案版' : '经典版'}</div>
                   </td>
                   <td>{q.customer || <span className="muted">—</span>}</td>
                   <td><span className="brand-chip"><span className="dot" style={{ background: b?.color }} />{b?.name}</span></td>
                   <td>{q.date || fmtDate(q.createdAt)}</td>
                   <td><Pill status={q.status} /></td>
-                  <td className="r strong">{fmtMoney(total)}</td>
+                  <td className="r strong">{fmtMoney(total, symOf(q))}</td>
                   <td className="r">
                     <div className="row-actions">
                       <button className="btn sm" onClick={() => go('editor', { kind: 'quote', id: q.id })}>编辑</button>

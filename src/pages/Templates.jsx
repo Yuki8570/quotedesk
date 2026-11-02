@@ -5,6 +5,7 @@ import { Modal, Field, Empty, Menu, Confirm, SearchInput } from '../ui.jsx';
 import { fmtMoney, fmtDate, firstLine } from '../util.js';
 import { quoteTotal, DEFAULT_TERMS, DEFAULT_TOTAL_LABEL, DEFAULT_SHEET_NAME } from '../layout.js';
 import { cloneItems, quoteFromTemplate } from '../exporters.js';
+import { LAYOUTS, layoutOf } from '../layout2.js';
 import { uid } from '../seed.js';
 
 // 从报价单（或编辑器草稿）保存为常用模板
@@ -17,7 +18,7 @@ export function SaveTemplateModal({ source, onClose, onSaved }) {
     if (!name.trim()) { toast('请填写模板名称', 'err'); return; }
     const base = overwrite ? data.templates.find((t) => t.id === overwrite) : {};
     const rec = await save('templates', {
-      ...base, name: name.trim(), desc, brandId: source.brandId, items: cloneItems(source.items),
+      ...base, name: name.trim(), desc, brandId: source.brandId, items: cloneItems(source.items), layout: source.layout || 'classic', sys: source.sys ? structuredClone(source.sys) : undefined,
       totalLabel: source.totalLabel, terms: [...(source.terms || [])], sheetName: source.sheetName,
     });
     toast(overwrite ? '模板已更新' : '已保存为常用模板');
@@ -89,7 +90,7 @@ export default function Templates({ query, setQuery, go }) {
                 </div>
                 <div className="tpl-meta">
                   <span>{t.items.length} 个产品</span>
-                  <span className="strong">{fmtMoney(quoteTotal(t))}</span>
+                  <span className="strong">{fmtMoney(quoteTotal(t), LAYOUTS[layoutOf(t)].symbol)}</span><span className="chip">{layoutOf(t) === 'system' ? '系统方案版' : '经典版'}</span>
                   {b && <span className="brand-chip"><span className="dot" style={{ background: b.color }} />{b.name}</span>}
                 </div>
                 <div className="tpl-actions">

@@ -6,7 +6,7 @@ import { fmtMoney, fmtDate, firstLine } from '../util.js';
 
 export function ProductForm({ initial, onClose, onSaved, title = '产品信息' }) {
   const { save, data, toast } = useStore();
-  const [p, setP] = useState({ name: '', warranty: '', model: '', price: '', category: '', image: '', ...initial });
+  const [p, setP] = useState({ name: '', nameBold: '', warranty: '', model: '', price: '', currency: 'RMB', category: '', image: '', ...initial });
   const set = (k) => (e) => setP({ ...p, [k]: e?.target ? e.target.value : e });
   const cats = [...new Set(data.products.map((x) => x.category).filter(Boolean))];
   const submit = async () => {
@@ -29,9 +29,10 @@ export function ProductForm({ initial, onClose, onSaved, title = '产品信息' 
           <Field label="产品名称" span={2} hint="可换行，导出时按行显示（与 Excel 模板 A 列一致）">
             <textarea rows={2} value={p.name} onChange={set('name')} placeholder="例：High Efficiency&#10;PV Module" />
           </Field>
+          <Field label="名称加粗补充（可选）" span={2} hint="系统方案版中显示为加粗，例：With UPS"><input value={p.nameBold || ''} onChange={set('nameBold')} /></Field>
           <Field label="质保"><input value={p.warranty} onChange={set('warranty')} placeholder="例：30 Years Power Warranty" /></Field>
-          <Field label="型号 / 规格"><input value={p.model} onChange={set('model')} placeholder="例：550W" /></Field>
-          <Field label="指导价（RMB）"><input type="number" step="0.01" value={p.price} onChange={set('price')} /></Field>
+          <Field label="指导价"><div className="color-in"><select className="select" style={{ width: 90 }} value={p.currency || 'RMB'} onChange={set('currency')}><option>RMB</option><option>USD</option></select><input type="number" step="0.01" value={p.price} onChange={set('price')} /></div></Field>
+          <Field label="型号 / 规格" span={2} hint="可换行；用 **文字** 标记加粗"><textarea rows={3} value={p.model} onChange={set('model')} placeholder="例：Model: **SE6R-66HBD-650M**" /></Field>
           <Field label="分类">
             <input list="cat-list" value={p.category} onChange={set('category')} placeholder="选择或输入" />
             <datalist id="cat-list">{cats.map((c) => <option key={c} value={c} />)}</datalist>
@@ -55,7 +56,7 @@ export default function Products({ query, setQuery }) {
       .filter((p) => !q || [p.name, p.model, p.warranty, p.category].join(' ').toLowerCase().includes(q))
       .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
   }, [data.products, query, cat]);
-  const avg = data.products.length ? data.products.reduce((s, p) => s + (Number(p.price) || 0), 0) / data.products.length : 0;
+  const usd = data.products.filter((p) => p.currency === 'USD').length;
 
   return (
     <div className="page">
@@ -73,7 +74,7 @@ export default function Products({ query, setQuery }) {
           </div>
         </div>
         <div className="kpi-div" />
-        <div className="kpi"><div><div className="kpi-label">平均指导价</div><div className="kpi-value sm">{fmtMoney(avg)}</div></div></div>
+        <div className="kpi"><div><div className="kpi-label">币种</div><div className="kpi-value sm">RMB {data.products.length - usd} · USD {usd}</div></div></div>
       </div>
 
       <div className="toolbar">
@@ -93,11 +94,11 @@ export default function Products({ query, setQuery }) {
             {list.map((p) => (
               <tr key={p.id}>
                 <td><div className="thumb">{p.image ? <img src={p.image} alt="" /> : null}</div></td>
-                <td><div className="strong">{firstLine(p.name) || '—'}</div></td>
+                <td style={{ maxWidth: 320 }}><div className="strong clamp">{firstLine(p.name) || '—'}</div>{p.nameBold && <div className="muted sm clamp">{p.nameBold}</div>}</td>
                 <td className="muted">{p.warranty || '—'}</td>
-                <td>{p.model || '—'}</td>
+                <td style={{ maxWidth: 240 }}><div className="clamp">{(p.model || '—').replace(/\*\*/g, '')}</div></td>
                 <td>{p.category ? <span className="chip">{p.category}</span> : '—'}</td>
-                <td className="r strong">{p.price === '' || p.price == null ? '—' : fmtMoney(p.price)}</td>
+                <td className="r strong">{p.price === '' || p.price == null ? '—' : fmtMoney(p.price, p.currency === 'USD' ? '$' : '¥')}<div className="muted sm">{p.currency || 'RMB'}</div></td>
                 <td className="muted">{fmtDate(p.updatedAt)}</td>
                 <td className="r">
                   <div className="row-actions">

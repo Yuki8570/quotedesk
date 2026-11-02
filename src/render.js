@@ -5,6 +5,8 @@ import {
   partText, num, itemAmount,
 } from './layout.js';
 import { imageInfo, logoBox, pictureBox, dataUrlToBytes } from './excel.js';
+import { renderSheet2, paginate2, PAGE2, SHEET2_W } from './render2.js';
+import { layoutOf } from './layout2.js';
 
 const BODY = 'Calibri, Carlito, "Segoe UI", "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif';
 const TITLE = 'Arial, "Liberation Sans", Helvetica, "PingFang SC", "Microsoft YaHei", sans-serif';
@@ -148,7 +150,7 @@ export async function renderSheet(quote, brand, scale = 2, opts = {}) {
     } else if (r.type === 'item') {
       const it = r.it;
       drawText(g, partText(it), COL_X[0], y, COL_PX[0], h, { font: fBody });
-      drawText(g, it.model || '', COL_X[2], y, COL_PX[2], h, { font: fBody });
+      drawText(g, (it.model || '').replace(/\*\*/g, ''), COL_X[2], y, COL_PX[2], h, { font: fBody });
       const q = num(it.qty);
       if (q !== null) drawText(g, String(q), COL_X[3], y, COL_PX[3], h, { font: fBody, wrap: false });
       drawAccounting(g, num(it.price), COL_X[4], y, COL_PX[4], h, fBody);
@@ -195,31 +197,41 @@ export function paginate(rows) {
   return pages;
 }
 
+// 按报价单版式选择绘制方式
+export function renderAny(quote, brand, scale, opts = {}) {
+  return layoutOf(quote) === 'system' ? renderSheet2(quote, brand, scale, opts) : renderSheet(quote, brand, scale, opts);
+}
+export const paginateAny = (quote, rows) => (layoutOf(quote) === 'system' ? paginate2(rows) : paginate(rows));
+
 export async function buildPdf(quote, brand) {
   const SCALE = 2.5;
-  const { canvas, rows } = await renderSheet(quote, brand, SCALE);
+  const sys = layoutOf(quote) === 'system';
+  const { canvas, rows } = await renderAny(quote, brand, SCALE);
   const pdf = await PDFDocument.create();
   pdf.setTitle(quote.title || quote.no || 'Quotation');
   pdf.setCreator('报价单系统');
   const mm2pt = 72 / 25.4;
   const pageW = PAGE_W_MM * mm2pt, pageH = PAGE_H_MM * mm2pt;
-  const pxToPt = MM_PER_PX * PRINT_SCALE * mm2pt;
-  const contentW = SHEET_W * pxToPt;
+  const sheetW = sys ? SHEET2_W : SHEET_W;
+  const pxToPt = MM_PER_PX * (sys ? PAGE2.scale : PRINT_SCALE) * mm2pt;
+  const contentW = sheetW * pxToPt;
+  const left = sys ? PAGE2.left * mm2pt : (pageW - contentW) / 2;
+  const top = (sys ? PAGE2.top : MARGIN_MM) * mm2pt;
 
-  for (const idx of paginate(rows)) {
-    const top = rows[idx[0]].y;
+  for (const idx of paginateAny(quote, rows)) {
+    const topPx = rows[idx[0]].y;
     const last = rows[idx[idx.length - 1]];
-    const hPx = last.y + last.h - top;
+    const hPx = last.y + last.h - topPx;
     const slice = document.createElement('canvas');
     slice.width = canvas.width;
     slice.height = Math.ceil(hPx * SCALE);
     const sg = slice.getContext('2d');
     sg.fillStyle = '#fff'; sg.fillRect(0, 0, slice.width, slice.height);
-    sg.drawImage(canvas, 0, Math.floor(top * SCALE), canvas.width, slice.height, 0, 0, slice.width, slice.height);
+    sg.drawImage(canvas, 0, Math.floor(topPx * SCALE), canvas.width, slice.height, 0, 0, slice.width, slice.height);
     const jpg = await pdf.embedJpg(dataUrlToBytes(slice.toDataURL('image/jpeg', 0.92)));
     const page = pdf.addPage([pageW, pageH]);
     const h = hPx * pxToPt;
-    page.drawImage(jpg, { x: (pageW - contentW) / 2, y: pageH - MARGIN_MM * mm2pt - h, width: contentW, height: h });
+    page.drawImage(jpg, { x: left, y: pageH - top - h, width: contentW, height: h });
   }
   const bytes = await pdf.save();
   return new Blob([bytes], { type: 'application/pdf' });

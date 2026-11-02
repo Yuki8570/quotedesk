@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { db } from './db.js';
 import { seedData, uid } from './seed.js';
+import { seedV2 } from './seed2.js';
 
 const Ctx = createContext(null);
 export const useStore = () => useContext(Ctx);
@@ -18,6 +19,17 @@ export function StoreProvider({ children }) {
       const s = seedData();
       for (const k of KEYS) await db.bulk(k, s[k]);
       await db.setMeta('seeded', true);
+    }
+    // 第二批产品与系统方案版示例（已有数据的浏览器也会补充，不覆盖已有记录）
+    if (!(await db.getMeta('seedV2'))) {
+      const brands = await db.all('brands');
+      const b = brands.find((x) => /sunevo/i.test(x.company || x.name)) || brands.find((x) => x.isDefault) || brands[0];
+      const s2 = seedV2(b?.id);
+      for (const k of ['products', 'templates', 'quotes']) {
+        const have = new Set((await db.all(k)).map((x) => x.id));
+        await db.bulk(k, s2[k].filter((x) => !have.has(x.id)));
+      }
+      await db.setMeta('seedV2', true);
     }
     const out = {};
     for (const k of KEYS) out[k] = await db.all(k);
@@ -62,7 +74,10 @@ export function StoreProvider({ children }) {
 
   const resetDemo = useCallback(async () => {
     const s = seedData();
+    const s2 = seedV2(s.brands[0].id);
+    ['products', 'templates', 'quotes'].forEach((k) => { s[k] = [...s[k], ...s2[k]]; });
     await replaceAll(s, 'replace');
+    await db.setMeta('seedV2', true);
   }, [replaceAll]);
 
   const value = { data, save, remove, toast, replaceAll, resetDemo, getData: () => dataRef.current };

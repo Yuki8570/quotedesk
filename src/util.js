@@ -42,7 +42,7 @@ export function pickFile(accept = 'image/*') {
   });
 }
 
-export const fmtMoney = (v) => '¥' + Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export const fmtMoney = (v, sym = '¥') => sym + Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 export const fmtDate = (t) => {
   if (!t) return '';
   const d = new Date(t);

@@ -156,7 +156,7 @@ export async function buildXlsx(quote, brand) {
       `<row r="${r}" s="3" customFormat="1" ht="${h}" customHeight="1" spans="1:12">`
       + strCell('A', a, 15)
       + `<c r="B${r}" s="16"/>`
-      + strCell('C', it.model || '', 17)
+      + strCell('C', (it.model || '').replace(/\*\*/g, ''), 17)
       + numCell('D', q, 16)
       + numCell('E', p, 18)
       + `<c r="F${r}" s="18"><f>D${r}*E${r}</f><v>${amt}</v></c>`

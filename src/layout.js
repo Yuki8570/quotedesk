@@ -36,7 +36,7 @@ export const DEFAULT_SHEET_NAME = '10';
 
 // A 列文字 = 名称 + 质保（多行）
 export function partText(item) {
-  const name = (item.name || '').replace(/\r/g, '');
+  const name = ((item.name || '') + (item.nameBold || '')).replace(/\r/g, '').replace(/\*\*/g, '');
   const w = (item.warranty || '').trim();
   return w ? (name ? name + '\n' + w : w) : name;
 }
@@ -48,6 +48,7 @@ export function num(v) {
 }
 
 export function itemAmount(it) {
+  if (it.amountNote) return 0;
   const q = num(it.qty), p = num(it.price);
   return q === null || p === null ? 0 : Math.round(q * p * 100) / 100;
 }
