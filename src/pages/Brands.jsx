@@ -46,6 +46,8 @@ function BrandForm({ initial, onClose }) {
           <Field label="公司名称（显示在表头）"><input value={b.company} onChange={set('company')} placeholder="例：SunEvo Solar Co., Ltd." /></Field>
           <Field label="电话 Tel"><input value={b.tel} onChange={set('tel')} /></Field>
           <Field label="网址 Web"><input value={b.web} onChange={set('web')} /></Field>
+          <Field label="系统方案版公司名称（可选）" hint="留空则用上面的公司名称"><input value={b.sysCompany || ''} onChange={set('sysCompany')} placeholder="例：SunEvo Solar Co., LTD." /></Field>
+          <Field label="系统方案版 LOGO（可选）" hint="留空则用左侧 LOGO"><div style={{ display: 'flex', gap: 10, alignItems: 'center' }}><ImageBox value={b.sysLogo || ''} onChange={set('sysLogo')} size={56} keepAlpha maxSize={1200} />{b.sysLogo && <img src={b.sysLogo} alt="" style={{ height: 22, maxWidth: 150, objectFit: 'contain' }} />}</div></Field>
           <Field label="邮箱 Email（可选）" span={2}><input value={b.email} onChange={set('email')} /></Field>
           <div className="grid2" style={{ gridColumn: 'span 2' }}>
             <Field label="主题色">

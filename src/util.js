@@ -36,8 +36,9 @@ export function processImage(file, { maxSize = 900, keepAlpha = false } = {}) {
 export function pickFile(accept = 'image/*') {
   return new Promise((res) => {
     const i = document.createElement('input');
-    i.type = 'file'; i.accept = accept;
-    i.onchange = () => res(i.files[0] || null);
+    i.type = 'file'; i.accept = accept; i.style.display = 'none';
+    document.body.appendChild(i);
+    i.addEventListener('change', () => { res(i.files[0] || null); i.remove(); });
     i.click();
   });
 }

@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, useCallback, useRef } f
 import { db } from './db.js';
 import { seedData, uid } from './seed.js';
 import { seedV2 } from './seed2.js';
+import { ASSETS2 } from './assets2.js';
 
 const Ctx = createContext(null);
 export const useStore = () => useContext(Ctx);
@@ -30,6 +31,12 @@ export function StoreProvider({ children }) {
         await db.bulk(k, s2[k].filter((x) => !have.has(x.id)));
       }
       await db.setMeta('seedV2', true);
+    }
+    if (!(await db.getMeta('seedV3'))) {
+      for (const b of await db.all('brands')) {
+        if (/sunevo/i.test(b.company || '') && !b.sysLogo) await db.put('brands', { ...b, sysCompany: b.sysCompany || 'SunEvo Solar Co., LTD.', sysLogo: ASSETS2.sysLogo });
+      }
+      await db.setMeta('seedV3', true);
     }
     const out = {};
     for (const k of KEYS) out[k] = await db.all(k);

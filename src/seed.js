@@ -1,4 +1,5 @@
 import { ASSETS } from './assets.js';
+import { ASSETS2 } from './assets2.js';
 import { DEFAULT_TERMS, DEFAULT_TOTAL_LABEL, DEFAULT_PRIMARY, DEFAULT_ACCENT } from './layout.js';
 
 export const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -30,7 +31,7 @@ export function seedData() {
   ].map((p) => ({ ...p, createdAt: now, updatedAt: now }));
 
   const brands = [
-    { id: uid(), name: 'SunEvo', company: 'SunEvo Solar Co., Ltd.', tel: '+86 181 3367 7933', web: 'www.sunevo.com', email: '', color: DEFAULT_PRIMARY, accent: DEFAULT_ACCENT, logo: ASSETS.logo, isDefault: true },
+    { id: uid(), name: 'SunEvo', company: 'SunEvo Solar Co., Ltd.', tel: '+86 181 3367 7933', web: 'www.sunevo.com', email: '', color: DEFAULT_PRIMARY, accent: DEFAULT_ACCENT, logo: ASSETS.logo, isDefault: true, sysCompany: 'SunEvo Solar Co., LTD.', sysLogo: ASSETS2.sysLogo },
     { id: uid(), name: '示例品牌 Voltera', company: 'Voltera Energy Co., Ltd.', tel: '+86 21 5555 0188', web: 'www.voltera-demo.com', email: 'sales@voltera-demo.com', color: '#0E7C66', accent: '#F2A900', logo: demoLogo('VOLTERA', '#0E7C66'), isDefault: false },
   ];
 

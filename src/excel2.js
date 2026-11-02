@@ -94,7 +94,7 @@ export async function buildXlsx2(quote, brand) {
 
   // 1–11 行：抬头、日期、项目信息、联系人、标题、表头
   let x;
-  x = fill(1, { E: { str: str(brand.company || '') } }); put(1, x.xml, x.h);
+  x = fill(1, { E: { str: str(brand.sysCompany || brand.company || '') } }); put(1, x.xml, x.h);
   x = fill(2, { A: { str: str(quote.date ? 'Date: ' + quote.date.replace(/-/g, '/') : '') } }); put(2, x.xml, x.h);
   x = fill(3, {}); put(3, x.xml, x.h);
   x = fill(4, { A: { str: str('PROJECT INFORMATION') }, F: { str: str('CONCT US') } }); put(4, x.xml, x.h);
@@ -209,7 +209,8 @@ export async function buildXlsx2(quote, brand) {
     rels.push(`<Relationship Id="${rec.rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image${n}.${info.ext}"/>`);
     media.set(url, rec); return rec;
   };
-  if (brand.logo) { const m = addMedia(brand.logo); if (m) { const bx = sysLogoBox(m.info); anchors.push(anchor(g, pid++, m.rid, bx.x, bx.y, bx.w, bx.h)); } }
+  const logoUrl = brand.sysLogo || brand.logo;
+  if (logoUrl) { const m = addMedia(logoUrl); if (m) { const bx = sysLogoBox(m.info); anchors.push(anchor(g, pid++, m.rid, bx.x, bx.y, bx.w, bx.h)); } }
   items.forEach((it, i) => {
     if (!it.image) return;
     const m = addMedia(it.image); if (!m) return;

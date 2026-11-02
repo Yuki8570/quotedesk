@@ -87,7 +87,8 @@ const load = (u) => {
 export async function renderSheet2(quote, brand, scale = 2, opts = {}) {
   const { rows, height, S } = layoutRows2(quote);
   const P = sysColor(brand);
-  const urls = [brand.logo, S.card, ...(quote.items || []).map((i) => i.image)].filter(Boolean);
+  const logoUrl = brand.sysLogo || brand.logo;
+  const urls = [logoUrl, S.card, ...(quote.items || []).map((i) => i.image)].filter(Boolean);
   const imgs = new Map();
   await Promise.all(urls.map(async (u) => imgs.set(u, await load(u))));
   const c = opts.canvas || document.createElement('canvas');
@@ -104,10 +105,10 @@ export async function renderSheet2(quote, brand, scale = 2, opts = {}) {
   for (const r of rows) {
     const { y, h } = r;
     if (r.t === 'r1') {
-      const im = brand.logo && imgs.get(brand.logo);
+      const im = logoUrl && imgs.get(logoUrl);
       if (im) { const b = sysLogoBox({ w: im.naturalWidth, h: im.naturalHeight }); g.drawImage(im, b.x / EMU, y + b.y / EMU, b.w / EMU, b.h / EMU); }
       const [x0, w0] = cx(4, 8);
-      txt(g, brand.company || '', x0, y, w0, h, F(400, 36), TEXT, 'right', 'middle', 2);
+      txt(g, brand.sysCompany || brand.company || '', x0, y, w0, h, F(400, 36), TEXT, 'right', 'middle', 2);
     } else if (r.t === 'date') {
       rect(g, 0, y, W, h, { sides: 'b' });
       if (quote.date) txt(g, `[Date: ${quote.date.replace(/-/g, '/')}]`, 0, y, COLX[2], h, F(500, 12), LABEL, 'left', 'middle', 2);
