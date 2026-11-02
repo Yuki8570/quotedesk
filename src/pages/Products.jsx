@@ -88,6 +88,22 @@ export default function Products({ query, setQuery }) {
       </div>
 
       {list.length ? (
+        <>
+        <div className="mlist">
+          {list.map((p) => (
+            <div key={p.id} className="mcard prod" onClick={() => setEdit(p)}>
+              <div className="thumb lg">{p.image ? <img src={p.image} alt="" /> : null}</div>
+              <div className="grow" style={{ minWidth: 0 }}>
+                <div className="strong clamp">{firstLine(p.name) || '—'}</div>
+                <div className="muted sm clamp">{[(p.model || '').replace(/\*\*/g, '').split('\n')[0], p.warranty].filter(Boolean).join(' · ')}</div>
+                <div className="mcard-foot">
+                  {p.category ? <span className="chip">{p.category}</span> : <span />}
+                  <span className="mcard-amt">{p.price === '' || p.price == null ? '—' : fmtMoney(p.price, p.currency === 'USD' ? '$' : '¥')}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
         <table className="table">
           <thead><tr><th style={{ width: 76 }}>图片</th><th>产品名称</th><th>质保</th><th>型号 / 规格</th><th>分类</th><th className="r">指导价</th><th>更新日期</th><th style={{ width: 120 }} /></tr></thead>
           <tbody>
@@ -115,6 +131,7 @@ export default function Products({ query, setQuery }) {
             ))}
           </tbody>
         </table>
+        </>
       ) : <Empty icon={<LuPackage />} title="没有找到产品" text="调整搜索条件，或新增一个产品" action={<button className="btn primary" onClick={() => setEdit({})}><LuPlus /> 新增产品</button>} />}
 
       {edit && <ProductForm initial={edit} title={edit.id ? '编辑产品' : '新增产品'} onClose={() => setEdit(null)} />}

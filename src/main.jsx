@@ -66,7 +66,7 @@ function Shell() {
   const navKey = page === 'editor' ? (params.kind === 'template' ? 'templates' : 'quotes') : page;
 
   return (
-    <div className={'app' + (collapsed ? ' collapsed' : '')}>
+    <div className={'app' + (collapsed ? ' collapsed' : '') + (page === 'editor' ? ' in-editor' : '')}>
       <aside className="side">
         <div className="side-brand">
           <div className="side-logo">报</div>
@@ -119,6 +119,15 @@ function Shell() {
         </div>
       </main>
 
+      {page !== 'editor' && (
+        <nav className="m-tabbar">
+          {NAV.filter((n) => n.key).map((n) => (
+            <button key={n.key} className={navKey === n.key ? 'on' : ''} onClick={() => go(n.key)}>
+              {n.icon}<span>{n.label.replace('品牌', '')}</span>
+            </button>
+          ))}
+        </nav>
+      )}
       {newOpen && <NewQuoteModal onClose={() => setNewOpen(false)} go={go} />}
       {pending && (
         <Confirm title="有未保存的修改" text="离开后本次修改将丢失，确定离开吗？" okText="不保存，离开" danger

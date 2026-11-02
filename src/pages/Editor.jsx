@@ -378,6 +378,14 @@ export default function Editor({ kind, id, draft: initDraft, go, setGuard }) {
         </aside>
       </div>
 
+      <div className="m-actions">
+        <button onClick={() => setBigPreview(true)}><LuEye /><span>预览</span></button>
+        <button disabled={!!busy} onClick={() => run('pdf', () => exportPdf(draft, brand))}><LuFileDown /><span>{busy === 'pdf' ? '生成中' : 'PDF'}</span></button>
+        <button disabled={!!busy} onClick={() => run('xlsx', () => exportExcel(draft, brand))}><LuFileSpreadsheet /><span>{busy === 'xlsx' ? '生成中' : 'Excel'}</span></button>
+        {kind === 'quote' && <button onClick={() => setTplModal(true)}><LuBookmarkPlus /><span>存模板</span></button>}
+        <button className="primary" onClick={doSave}><LuSave /><span>保存</span></button>
+      </div>
+
       {picker && <ProductPicker onClose={() => setPicker(false)} onPick={(ps) => { setItems((l) => [...l, ...ps.map((p) => itemFromProduct(p, sys))]); toast(`已导入 ${ps.length} 个产品`); }} />}
       {pform && <ProductForm title="存入产品库" initial={pform.initial} onClose={() => setPform(null)}
         onSaved={(p) => updateItem(pform.i)({ ...draft.items[pform.i], productId: p.id, name: p.name, nameBold: p.nameBold || '', warranty: p.warranty, model: p.model, price: p.price, image: p.image })} />}

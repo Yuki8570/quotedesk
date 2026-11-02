@@ -96,6 +96,38 @@ export default function Quotes({ query, setQuery, go }) {
       </div>
 
       {list.length ? (
+        <>
+        <div className="mlist">
+          {list.map((q) => {
+            const b = brandOf(q);
+            return (
+              <div key={q.id} className="mcard" onClick={() => go('editor', { kind: 'quote', id: q.id })}>
+                <div className="mcard-top"><span className="strong">{q.no}</span><Pill status={q.status} /></div>
+                <div className="muted sm mcard-sub">{q.title || '未命名'}</div>
+                <div className="mcard-meta">
+                  <span className="brand-chip"><span className="dot" style={{ background: b?.color }} />{b?.name}</span>
+                  <span>{q.customer || '—'}</span>
+                  <span>{layoutOf(q) === 'system' ? '系统方案版' : '经典版'} · {q.items.length} 项</span>
+                </div>
+                <div className="mcard-foot" onClick={(e) => e.stopPropagation()}>
+                  <span className="mcard-amt">{fmtMoney(quoteTotal(q), symOf(q))}</span>
+                  <div className="row-actions">
+                    <button className="btn sm" onClick={() => go('editor', { kind: 'quote', id: q.id })}>编辑</button>
+                    <Menu items={[
+                      { label: '导出 Excel', icon: <LuFileSpreadsheet />, onClick: () => run(q.id + 'x', () => exportExcel(q, b)) },
+                      { label: '导出 PDF', icon: <LuFileDown />, onClick: () => run(q.id + 'p', () => exportPdf(q, b)) },
+                      '-',
+                      { label: '复制报价单', icon: <LuCopy />, onClick: async () => { await save('quotes', { ...q, id: undefined, createdAt: undefined, no: nextQuoteNo(data.quotes), status: 'draft', items: cloneItems(q.items) }); toast('已复制'); } },
+                      { label: '存为常用模板', icon: <LuBookmarkPlus />, onClick: () => setTpl(q) },
+                      '-',
+                      { label: '删除', icon: <LuTrash2 />, danger: true, onClick: () => setDel(q) },
+                    ]} />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
         <table className="table">
           <thead><tr><th>报价单</th><th>客户</th><th>抬头</th><th>日期</th><th>状态</th><th className="r">金额</th><th style={{ width: 120 }} /></tr></thead>
           <tbody>
@@ -132,6 +164,7 @@ export default function Quotes({ query, setQuery, go }) {
             })}
           </tbody>
         </table>
+        </>
       ) : <Empty icon={<LuFileText />} title="暂无报价单" text={query ? '没有匹配的结果' : '点击右上角新建第一份报价单'} action={<button className="btn primary" onClick={() => setNewOpen(true)}><LuPlus /> 新建报价单</button>} />}
 
       {newOpen && <NewQuoteModal onClose={() => setNewOpen(false)} go={go} />}
